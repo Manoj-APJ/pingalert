@@ -1,0 +1,51 @@
+{
+  "name": "pingalert",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev:client": "vite",
+    "dev:server": "nodemon server.js",
+    "dev:worker": "nodemon worker-entry.js",
+    "dev": "concurrently --kill-others \"npm run dev:client\" \"npm run dev:server\" \"npm run dev:worker\"",
+    "build": "tsc -b && vite build",
+    "start": "node server.js",
+    "start:worker": "node worker-entry.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "bullmq": "^5.41.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^6.10.0",
+    "pg": "^8.13.3",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "redis": "^4.7.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.9",
+    "@types/node": "^24.12.3",
+    "@types/nodemailer": "^6.4.17",
+    "@types/pg": "^8.11.11",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.1.2",
+    "eslint": "^10.3.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.6.0",
+    "nodemon": "^3.1.9",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.59.2",
+    "vite": "^8.0.12"
+  }
+}
