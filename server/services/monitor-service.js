@@ -1,6 +1,32 @@
 import { query } from '../db/index.js';
 import { alertQueue, pingQueue } from '../queue/index.js';
 import { config } from '../config/index.js';
+import dns from 'dns/promises';
+
+/**
+ * Helper to determine if an IP address is internal/private (RFC1918, loopback, link-local, etc.)
+ */
+const isPrivateIP = (ip) => {
+  if (ip === '::1' || ip === '::' || ip === '0.0.0.0' || ip === '127.0.0.1') return true;
+  if (ip.startsWith('::ffff:')) ip = ip.substring(7);
+  
+  const parts = ip.split('.');
+  if (parts.length === 4) {
+    const num = parseInt(parts[0], 10);
+    if (num === 10) return true; // 10.0.0.0/8
+    if (num === 127) return true; // 127.0.0.0/8
+    if (num === 169 && parseInt(parts[1], 10) === 254) return true; // 169.254.0.0/16
+    if (num === 172 && parseInt(parts[1], 10) >= 16 && parseInt(parts[1], 10) <= 31) return true; // 172.16.0.0/12
+    if (num === 192 && parseInt(parts[1], 10) === 168) return true; // 192.168.0.0/16
+    if (num === 0) return true; // 0.0.0.0/8
+  }
+
+  // IPv6 checks
+  if (ip.toLowerCase().startsWith('fc') || ip.toLowerCase().startsWith('fd')) return true; // Unique Local
+  if (ip.toLowerCase().startsWith('fe8') || ip.toLowerCase().startsWith('fe9') || ip.toLowerCase().startsWith('fea') || ip.toLowerCase().startsWith('feb')) return true; // Link Local
+
+  return false;
+};
 
 /**
  * Executes a network ping (HTTP request) to a monitor URL.
@@ -12,18 +38,34 @@ export const performPing = async (monitor) => {
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    const parsedUrl = new URL(monitor.url);
+    
+    // SSRF Protection: Resolve the hostname and check if it targets a private IP
+    try {
+      const lookupInfo = await dns.lookup(parsedUrl.hostname);
+      if (isPrivateIP(lookupInfo.address)) {
+        throw new Error(`SSRF Blocked: URL resolves to internal IP ${lookupInfo.address}`);
+      }
+    } catch (dnsErr) {
+      // If DNS resolution fails entirely, throw an error to be handled as downtime
+      if (dnsErr.message.includes('SSRF Blocked')) throw dnsErr;
+      throw new Error(`DNS Resolution failed: ${dnsErr.message}`);
+    }
+
     const response = await fetch(monitor.url, {
       method: 'GET',
       headers: {
         'User-Agent': 'PingAlert/1.0 (Website Availability Monitor)'
       },
+      redirect: 'manual', // SSRF Protection: Prevent following redirects to internal targets
       signal: controller.signal
     });
 
     const responseTimeMs = Date.now() - startTime;
     clearTimeout(timeoutId);
 
-    // Consider 2xx and 3xx status codes as "UP"
+    // Consider 2xx and 3xx status codes as "UP". 
+    // 3xx is considered UP since we use manual redirects to avoid SSRF chains.
     const isUp = response.status >= 200 && response.status < 400;
     return {
       isUp,

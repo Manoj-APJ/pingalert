@@ -14,9 +14,12 @@ export const createMonitor = async (req, res) => {
 
   try {
     // Validate target URL format
-    new URL(url);
+    const parsedUrl = new URL(url);
+    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+      throw new Error('Invalid protocol');
+    }
   } catch (urlErr) {
-    return res.status(400).json({ error: 'Invalid target URL format. Must start with http:// or https://' });
+    return res.status(400).json({ error: 'Invalid target URL format. Must use http:// or https://' });
   }
 
   const interval = parseInt(interval_minutes || '5', 10);
@@ -111,7 +114,10 @@ export const updateMonitor = async (req, res) => {
     let nextUrl = currentMonitor.url;
     if (url) {
       try {
-        new URL(url);
+        const parsedUrl = new URL(url);
+        if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+          throw new Error('Invalid protocol');
+        }
         nextUrl = url;
       } catch (urlErr) {
         return res.status(400).json({ error: 'Invalid target URL format.' });
