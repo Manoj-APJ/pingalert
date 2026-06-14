@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS monitors (
     name VARCHAR(255) NOT NULL,
     url VARCHAR(512) NOT NULL,
     type VARCHAR(50) DEFAULT 'HTTPS',
-    interval_minutes INTEGER DEFAULT 5,
-    timeout_seconds INTEGER DEFAULT 10,
+    interval_minutes INTEGER DEFAULT 5 CHECK (interval_minutes >= 1 AND interval_minutes <= 1440),
+    timeout_seconds INTEGER DEFAULT 10 CHECK (timeout_seconds >= 1 AND timeout_seconds <= 300),
     is_active BOOLEAN DEFAULT TRUE,
     status VARCHAR(20) DEFAULT 'unknown',
     last_checked_at TIMESTAMP WITH TIME ZONE,
@@ -86,3 +86,14 @@ CREATE INDEX IF NOT EXISTS idx_status_page_monitors_monitor_id ON status_page_mo
 CREATE INDEX IF NOT EXISTS idx_incidents_monitor_started ON incidents(monitor_id, started_at);
 CREATE INDEX IF NOT EXISTS idx_email_logs_sent_at ON email_logs(sent_at);
 CREATE INDEX IF NOT EXISTS idx_email_logs_monitor_id ON email_logs(monitor_id);
+
+-- Safely add constraints to existing tables for backwards compatibility
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'monitors_interval_minutes_check') THEN
+        ALTER TABLE monitors ADD CONSTRAINT monitors_interval_minutes_check CHECK (interval_minutes >= 1 AND interval_minutes <= 1440);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'monitors_timeout_seconds_check') THEN
+        ALTER TABLE monitors ADD CONSTRAINT monitors_timeout_seconds_check CHECK (timeout_seconds >= 1 AND timeout_seconds <= 300);
+    END IF;
+END $$;

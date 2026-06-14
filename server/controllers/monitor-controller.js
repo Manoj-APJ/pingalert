@@ -25,6 +25,13 @@ export const createMonitor = async (req, res) => {
   const interval = parseInt(interval_minutes || '5', 10);
   const timeout = parseInt(timeout_seconds || '10', 10);
 
+  if (isNaN(interval) || interval < 1 || interval > 1440) {
+    return res.status(400).json({ error: 'Interval must be a number between 1 and 1440 minutes.' });
+  }
+  if (isNaN(timeout) || timeout < 1 || timeout > 300) {
+    return res.status(400).json({ error: 'Timeout must be a number between 1 and 300 seconds.' });
+  }
+
   try {
     const monitorId = crypto.randomUUID();
     const now = new Date();
@@ -131,6 +138,13 @@ export const updateMonitor = async (req, res) => {
     const nextType = type || currentMonitor.type;
     const nextInterval = interval_minutes !== undefined ? parseInt(interval_minutes, 10) : currentMonitor.interval_minutes;
     const nextTimeout = timeout_seconds !== undefined ? parseInt(timeout_seconds, 10) : currentMonitor.timeout_seconds;
+
+    if (isNaN(nextInterval) || nextInterval < 1 || nextInterval > 1440) {
+      return res.status(400).json({ error: 'Interval must be a number between 1 and 1440 minutes.' });
+    }
+    if (isNaN(nextTimeout) || nextTimeout < 1 || nextTimeout > 300) {
+      return res.status(400).json({ error: 'Timeout must be a number between 1 and 300 seconds.' });
+    }
     
     let nextActive = currentMonitor.is_active;
     let nextCheck = currentMonitor.next_check_at;

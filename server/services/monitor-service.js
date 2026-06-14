@@ -1,4 +1,4 @@
-import { query } from '../db/index.js';
+import { query, pool } from '../db/index.js';
 import { alertQueue, pingQueue } from '../queue/index.js';
 import { config } from '../config/index.js';
 import dns from 'dns/promises';
@@ -93,156 +93,183 @@ export const performPing = async (monitor) => {
  */
 export const handleCheckResult = async (monitorId, checkResult) => {
   const now = new Date();
-  
-  // Find current monitor details
-  const monitorRes = await query('SELECT * FROM monitors WHERE id = $1', [monitorId]);
-  if (monitorRes.rowCount === 0) return;
-  const monitor = monitorRes.rows[0];
-
-  const prevStatus = monitor.status || 'unknown';
-  let nextStatus = prevStatus;
-  let consecutiveFailures = monitor.consecutive_failures || 0;
-  let lastStatusChangeAt = monitor.last_status_change_at;
-
   const currentHour = new Date(now);
   currentHour.setMinutes(0, 0, 0); // Floor to nearest hour
+  
+  const client = await pool.connect();
+  const queueOps = [];
 
-  // Perform database updates
-  if (checkResult.isUp) {
-    // -----------------------------------------------------
-    // CASE 1: SUCCESSFUL CHECK
-    // -----------------------------------------------------
-    consecutiveFailures = 0;
-    nextStatus = 'up';
+  try {
+    await client.query('BEGIN');
 
-    if (prevStatus === 'down') {
-      // Transition: DOWN -> UP
-      lastStatusChangeAt = now;
-
-      // Close the active incident
-      const incidentRes = await query(
-        `UPDATE incidents 
-         SET ended_at = $1, is_resolved = true 
-         WHERE monitor_id = $2 AND is_resolved = false
-         RETURNING id, started_at`,
-        [now, monitorId]
-      );
-
-      if (incidentRes.rowCount > 0) {
-        const incident = incidentRes.rows[0];
-        const durationSec = Math.floor((now - new Date(incident.started_at)) / 1000);
-
-        // Queue notification job for resolved incident
-        await alertQueue.add('alert-resolved', {
-          monitorId,
-          monitorName: monitor.name,
-          monitorUrl: monitor.url,
-          userId: monitor.user_id,
-          type: 'UP',
-          startedAt: incident.started_at,
-          endedAt: now,
-          durationSec
-        });
-      }
+    // Find current monitor details
+    // FOR UPDATE ensures row-level locking during the transaction
+    const monitorRes = await client.query('SELECT * FROM monitors WHERE id = $1 FOR UPDATE', [monitorId]);
+    if (monitorRes.rowCount === 0) {
+      await client.query('ROLLBACK');
+      client.release();
+      return;
     }
+    const monitor = monitorRes.rows[0];
 
-    // Update monitors state table
-    const nextCheck = new Date(now.getTime() + monitor.interval_minutes * 60 * 1000);
-    await query(
-      `UPDATE monitors 
-       SET status = $1, last_checked_at = $2, last_status_change_at = $3, 
-           consecutive_failures = $4, next_check_at = $5, updated_at = $6
-       WHERE id = $7`,
-      [nextStatus, now, lastStatusChangeAt || now, consecutiveFailures, nextCheck, now, monitorId]
-    );
+    const prevStatus = monitor.status || 'unknown';
+    let nextStatus = prevStatus;
+    let consecutiveFailures = monitor.consecutive_failures || 0;
+    let lastStatusChangeAt = monitor.last_status_change_at;
 
-    // Save/Update Hourly Stats
-    await query(
-      `INSERT INTO hourly_stats (monitor_id, hour, ping_count, up_count, avg_response_time_ms)
-       VALUES ($1, $2, 1, 1, $3)
-       ON CONFLICT (monitor_id, hour) DO UPDATE SET
-         avg_response_time_ms = ((hourly_stats.avg_response_time_ms * hourly_stats.ping_count) + EXCLUDED.avg_response_time_ms) / (hourly_stats.ping_count + 1),
-         ping_count = hourly_stats.ping_count + 1,
-         up_count = hourly_stats.up_count + 1`,
-      [monitorId, currentHour, checkResult.responseTimeMs]
-    );
+    // Perform database updates
+    if (checkResult.isUp) {
+      // -----------------------------------------------------
+      // CASE 1: SUCCESSFUL CHECK
+      // -----------------------------------------------------
+      consecutiveFailures = 0;
+      nextStatus = 'up';
 
-  } else {
-    // -----------------------------------------------------
-    // CASE 2: FAILED CHECK
-    // -----------------------------------------------------
-    consecutiveFailures += 1;
-
-    // Check if the retries threshold is crossed
-    if (consecutiveFailures >= config.pingRetryCount) {
-      nextStatus = 'down';
-
-      if (prevStatus === 'up' || prevStatus === 'unknown') {
-        // Transition: UP -> DOWN
+      if (prevStatus === 'down') {
+        // Transition: DOWN -> UP
         lastStatusChangeAt = now;
 
-        // Open a new outage incident record
-        const incidentId = crypto.randomUUID();
-        await query(
-          `INSERT INTO incidents (id, monitor_id, started_at, cause, is_resolved)
-           VALUES ($1, $2, $3, $4, false)`,
-          [incidentId, monitorId, now, checkResult.cause]
+        // Close the active incident
+        const incidentRes = await client.query(
+          `UPDATE incidents 
+           SET ended_at = $1, is_resolved = true 
+           WHERE monitor_id = $2 AND is_resolved = false
+           RETURNING id, started_at`,
+          [now, monitorId]
         );
 
-        // Queue critical outage alert notification
-        await alertQueue.add('alert-outage', {
-          monitorId,
-          monitorName: monitor.name,
-          monitorUrl: monitor.url,
-          userId: monitor.user_id,
-          type: 'DOWN',
-          startedAt: now,
-          cause: checkResult.cause
-        });
+        if (incidentRes.rowCount > 0) {
+          const incident = incidentRes.rows[0];
+          const durationSec = Math.floor((now - new Date(incident.started_at)) / 1000);
+
+          // Queue notification job for resolved incident
+          queueOps.push(() => alertQueue.add('alert-resolved', {
+            monitorId,
+            monitorName: monitor.name,
+            monitorUrl: monitor.url,
+            userId: monitor.user_id,
+            type: 'UP',
+            startedAt: incident.started_at,
+            endedAt: now,
+            durationSec
+          }));
+        }
       }
 
-      // Schedule next standard check
+      // Update monitors state table
       const nextCheck = new Date(now.getTime() + monitor.interval_minutes * 60 * 1000);
-      await query(
+      await client.query(
         `UPDATE monitors 
          SET status = $1, last_checked_at = $2, last_status_change_at = $3, 
              consecutive_failures = $4, next_check_at = $5, updated_at = $6
          WHERE id = $7`,
         [nextStatus, now, lastStatusChangeAt || now, consecutiveFailures, nextCheck, now, monitorId]
       );
-    } else {
-      // transient failure! Queue an immediate check retry with delay
-      console.log(`Monitor ${monitor.name} failed. Attempt ${consecutiveFailures}/${config.pingRetryCount}. Scheduling retry in ${config.pingRetryDelaySec}s.`);
-      
-      // Update consecutive failures on monitor immediately
-      await query(
-        `UPDATE monitors 
-         SET consecutive_failures = $1, last_checked_at = $2, updated_at = $3
-         WHERE id = $4`,
-        [consecutiveFailures, now, now, monitorId]
+
+      // Save/Update Hourly Stats
+      await client.query(
+        `INSERT INTO hourly_stats (monitor_id, hour, ping_count, up_count, avg_response_time_ms)
+         VALUES ($1, $2, 1, 1, $3)
+         ON CONFLICT (monitor_id, hour) DO UPDATE SET
+           avg_response_time_ms = ((hourly_stats.avg_response_time_ms * hourly_stats.ping_count) + EXCLUDED.avg_response_time_ms) / (hourly_stats.ping_count + 1),
+           ping_count = hourly_stats.ping_count + 1,
+           up_count = hourly_stats.up_count + 1`,
+        [monitorId, currentHour, checkResult.responseTimeMs]
       );
 
-      await pingQueue.add(
-        'ping-retry',
-        { monitorId },
-        { 
-          jobId: `ping-${monitorId}`,
-          delay: config.pingRetryDelaySec * 1000,
-          removeOnComplete: true,
-          removeOnFail: true
+    } else {
+      // -----------------------------------------------------
+      // CASE 2: FAILED CHECK
+      // -----------------------------------------------------
+      consecutiveFailures += 1;
+
+      // Check if the retries threshold is crossed
+      if (consecutiveFailures >= config.pingRetryCount) {
+        nextStatus = 'down';
+
+        if (prevStatus === 'up' || prevStatus === 'unknown') {
+          // Transition: UP -> DOWN
+          lastStatusChangeAt = now;
+
+          // Open a new outage incident record
+          const incidentId = crypto.randomUUID();
+          await client.query(
+            `INSERT INTO incidents (id, monitor_id, started_at, cause, is_resolved)
+             VALUES ($1, $2, $3, $4, false)`,
+            [incidentId, monitorId, now, checkResult.cause]
+          );
+
+          // Queue critical outage alert notification
+          queueOps.push(() => alertQueue.add('alert-outage', {
+            monitorId,
+            monitorName: monitor.name,
+            monitorUrl: monitor.url,
+            userId: monitor.user_id,
+            type: 'DOWN',
+            startedAt: now,
+            cause: checkResult.cause
+          }));
         }
+
+        // Schedule next standard check
+        const nextCheck = new Date(now.getTime() + monitor.interval_minutes * 60 * 1000);
+        await client.query(
+          `UPDATE monitors 
+           SET status = $1, last_checked_at = $2, last_status_change_at = $3, 
+               consecutive_failures = $4, next_check_at = $5, updated_at = $6
+           WHERE id = $7`,
+          [nextStatus, now, lastStatusChangeAt || now, consecutiveFailures, nextCheck, now, monitorId]
+        );
+      } else {
+        // transient failure! Queue an immediate check retry with delay
+        console.log(`Monitor ${monitor.name} failed. Attempt ${consecutiveFailures}/${config.pingRetryCount}. Scheduling retry in ${config.pingRetryDelaySec}s.`);
+        
+        // Update consecutive failures on monitor immediately
+        await client.query(
+          `UPDATE monitors 
+           SET consecutive_failures = $1, last_checked_at = $2, updated_at = $3
+           WHERE id = $4`,
+          [consecutiveFailures, now, now, monitorId]
+        );
+
+        queueOps.push(() => pingQueue.add(
+          'ping-retry',
+          { monitorId },
+          { 
+            jobId: `ping-${monitorId}`,
+            delay: config.pingRetryDelaySec * 1000,
+            removeOnComplete: true,
+            removeOnFail: true
+          }
+        ));
+      }
+
+      // Save/Update Hourly Stats (Record failure in latency history)
+      await client.query(
+        `INSERT INTO hourly_stats (monitor_id, hour, ping_count, up_count, avg_response_time_ms)
+         VALUES ($1, $2, 1, 0, $3)
+         ON CONFLICT (monitor_id, hour) DO UPDATE SET
+           avg_response_time_ms = ((hourly_stats.avg_response_time_ms * hourly_stats.ping_count) + EXCLUDED.avg_response_time_ms) / (hourly_stats.ping_count + 1),
+           ping_count = hourly_stats.ping_count + 1`,
+        [monitorId, currentHour, checkResult.responseTimeMs]
       );
     }
 
-    // Save/Update Hourly Stats (Record failure in latency history)
-    await query(
-      `INSERT INTO hourly_stats (monitor_id, hour, ping_count, up_count, avg_response_time_ms)
-       VALUES ($1, $2, 1, 0, $3)
-       ON CONFLICT (monitor_id, hour) DO UPDATE SET
-         avg_response_time_ms = ((hourly_stats.avg_response_time_ms * hourly_stats.ping_count) + EXCLUDED.avg_response_time_ms) / (hourly_stats.ping_count + 1),
-         ping_count = hourly_stats.ping_count + 1`,
-      [monitorId, currentHour, checkResult.responseTimeMs]
-    );
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('[Monitor Service] Error processing check result transaction:', error);
+  } finally {
+    client.release();
+  }
+
+  // Execute queue operations only after successful transaction commit
+  for (const op of queueOps) {
+    try {
+      await op();
+    } catch (queueErr) {
+      console.error('[Monitor Service] Error adding job to queue:', queueErr);
+    }
   }
 };
 
