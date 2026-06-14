@@ -39,7 +39,11 @@ export const createMonitor = async (req, res) => {
     const monitor = insertRes.rows[0];
 
     // Trigger an immediate check on creation
-    await pingQueue.add('ping-check', { monitorId: monitor.id });
+    await pingQueue.add('ping-check', { monitorId: monitor.id }, {
+      jobId: `ping-${monitor.id}`,
+      removeOnComplete: true,
+      removeOnFail: true
+    });
 
     res.status(201).json(monitor);
   } catch (error) {
@@ -157,7 +161,11 @@ export const updateMonitor = async (req, res) => {
 
     // Trigger check immediately if unpaused
     if (is_active && !currentMonitor.is_active) {
-      await pingQueue.add('ping-check', { monitorId: id });
+      await pingQueue.add('ping-check', { monitorId: id }, {
+        jobId: `ping-${id}`,
+        removeOnComplete: true,
+        removeOnFail: true
+      });
     }
 
     res.json(updatedMonitor);

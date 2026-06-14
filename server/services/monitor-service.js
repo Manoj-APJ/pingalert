@@ -2,30 +2,26 @@ import { query } from '../db/index.js';
 import { alertQueue, pingQueue } from '../queue/index.js';
 import { config } from '../config/index.js';
 import dns from 'dns/promises';
+import ipaddr from 'ipaddr.js';
 
 /**
  * Helper to determine if an IP address is internal/private (RFC1918, loopback, link-local, etc.)
  */
-const isPrivateIP = (ip) => {
-  if (ip === '::1' || ip === '::' || ip === '0.0.0.0' || ip === '127.0.0.1') return true;
-  if (ip.startsWith('::ffff:')) ip = ip.substring(7);
-  
-  const parts = ip.split('.');
-  if (parts.length === 4) {
-    const num = parseInt(parts[0], 10);
-    if (num === 10) return true; // 10.0.0.0/8
-    if (num === 127) return true; // 127.0.0.0/8
-    if (num === 169 && parseInt(parts[1], 10) === 254) return true; // 169.254.0.0/16
-    if (num === 172 && parseInt(parts[1], 10) >= 16 && parseInt(parts[1], 10) <= 31) return true; // 172.16.0.0/12
-    if (num === 192 && parseInt(parts[1], 10) === 168) return true; // 192.168.0.0/16
-    if (num === 0) return true; // 0.0.0.0/8
+const isPrivateIP = (ipStr) => {
+  try {
+    let addr = ipaddr.parse(ipStr);
+    
+    // Normalize IPv4-mapped IPv6 addresses to strictly check their underlying IPv4 range
+    if (addr.kind() === 'ipv6' && addr.isIPv4MappedAddress()) {
+      addr = addr.toIPv4Address();
+    }
+    
+    // ipaddr.js range() returns 'unicast' for public routable IPs.
+    // It returns 'private', 'loopback', 'linkLocal', 'uniqueLocal', etc. for internal IPs.
+    return addr.range() !== 'unicast';
+  } catch (err) {
+    return true; // Default deny if the IP address cannot be parsed
   }
-
-  // IPv6 checks
-  if (ip.toLowerCase().startsWith('fc') || ip.toLowerCase().startsWith('fd')) return true; // Unique Local
-  if (ip.toLowerCase().startsWith('fe8') || ip.toLowerCase().startsWith('fe9') || ip.toLowerCase().startsWith('fea') || ip.toLowerCase().startsWith('feb')) return true; // Link Local
-
-  return false;
 };
 
 /**
@@ -42,9 +38,12 @@ export const performPing = async (monitor) => {
     
     // SSRF Protection: Resolve the hostname and check if it targets a private IP
     try {
-      const lookupInfo = await dns.lookup(parsedUrl.hostname);
-      if (isPrivateIP(lookupInfo.address)) {
-        throw new Error(`SSRF Blocked: URL resolves to internal IP ${lookupInfo.address}`);
+      // Use { all: true } to catch DNS Multi-Record / Happy Eyeballs bypasses
+      const lookupInfos = await dns.lookup(parsedUrl.hostname, { all: true });
+      for (const info of lookupInfos) {
+        if (isPrivateIP(info.address)) {
+          throw new Error(`SSRF Blocked: URL resolves to internal IP ${info.address}`);
+        }
       }
     } catch (dnsErr) {
       // If DNS resolution fails entirely, throw an error to be handled as downtime
@@ -226,7 +225,12 @@ export const handleCheckResult = async (monitorId, checkResult) => {
       await pingQueue.add(
         'ping-retry',
         { monitorId },
-        { delay: config.pingRetryDelaySec * 1000 }
+        { 
+          jobId: `ping-${monitorId}`,
+          delay: config.pingRetryDelaySec * 1000,
+          removeOnComplete: true,
+          removeOnFail: true
+        }
       );
     }
 

@@ -32,8 +32,9 @@ export const scheduleDueMonitors = async () => {
         'ping-check',
         { monitorId: monitor.id },
         {
-          jobId: `ping-${monitor.id}-${Date.now()}`,
-          removeOnComplete: true
+          jobId: `ping-${monitor.id}`,
+          removeOnComplete: true,
+          removeOnFail: true
         }
       );
     }

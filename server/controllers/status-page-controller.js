@@ -21,6 +21,23 @@ const updateStatusPageMonitors = async (statusPageId, monitorIds) => {
 };
 
 /**
+ * Validate that all provided monitor IDs exist and belong to the user
+ */
+const validateMonitorOwnership = async (monitorIds, userId) => {
+  if (!monitorIds || monitorIds.length === 0) return true;
+  
+  const result = await query(
+    `SELECT COUNT(*)
+     FROM monitors
+     WHERE id = ANY($1)
+     AND user_id = $2`,
+    [monitorIds, userId]
+  );
+  
+  return parseInt(result.rows[0].count, 10) === monitorIds.length;
+};
+
+/**
  * Create a new status page config
  */
 export const createStatusPage = async (req, res) => {
@@ -39,6 +56,14 @@ export const createStatusPage = async (req, res) => {
     const slugCheck = await query('SELECT id FROM status_pages WHERE slug = $1', [formattedSlug]);
     if (slugCheck.rowCount > 0) {
       return res.status(409).json({ error: 'This status page slug is already taken.' });
+    }
+
+    // Validate monitor ownership
+    if (monitor_ids && monitor_ids.length > 0) {
+      const isValid = await validateMonitorOwnership(monitor_ids, userId);
+      if (!isValid) {
+        return res.status(403).json({ error: 'One or more monitors do not exist or do not belong to you.' });
+      }
     }
 
     const statusPageId = crypto.randomUUID();
@@ -146,6 +171,14 @@ export const updateStatusPage = async (req, res) => {
       const slugCheck = await query('SELECT id FROM status_pages WHERE slug = $1 AND id != $2', [formattedSlug, id]);
       if (slugCheck.rowCount > 0) {
         return res.status(409).json({ error: 'This slug is already taken.' });
+      }
+    }
+
+    // Validate monitor ownership
+    if (monitor_ids !== undefined && monitor_ids.length > 0) {
+      const isValid = await validateMonitorOwnership(monitor_ids, userId);
+      if (!isValid) {
+        return res.status(403).json({ error: 'One or more monitors do not exist or do not belong to you.' });
       }
     }
 
