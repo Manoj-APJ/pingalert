@@ -9,7 +9,7 @@ const router = Router();
 // Define a stricter rate limiter for sign-up and login routes
 const authRateLimiter = rateLimit({
   windowMs: config.rateLimitWindowMs,
-  max: 20, // limit each IP to 20 auth attempts per 15 mins
+  max: 10, // limit each IP to 10 auth attempts per 15 mins
   message: { error: 'Too many authentication attempts from this IP. Please try again after 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false

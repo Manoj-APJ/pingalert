@@ -12,6 +12,7 @@ const { Pool } = pg;
 // Set up connection pool
 export const pool = new Pool({
   connectionString: config.databaseUrl,
+  max: config.dbPoolSize,
 });
 
 export const query = (text, params) => pool.query(text, params);

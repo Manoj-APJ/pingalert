@@ -8,35 +8,31 @@ import { pruneEmailLogs } from '../services/monitor-service.js';
  */
 export const scheduleDueMonitors = async () => {
   try {
-    // Select monitors due for checking
+    // Atomically select and temporarily lock due monitors by advancing their next_check_at
     const dueRes = await query(
-      `SELECT id, name, url, interval_minutes 
-       FROM monitors 
-       WHERE is_active = true AND (next_check_at <= NOW() OR next_check_at IS NULL)`
+      `UPDATE monitors 
+       SET next_check_at = NOW() + (interval_minutes * interval '1 minute')
+       WHERE is_active = true AND (next_check_at <= NOW() OR next_check_at IS NULL)
+       RETURNING id, name, url, interval_minutes`
     );
 
     if (dueRes.rowCount === 0) return;
 
     console.log(`[Scheduler] Found ${dueRes.rowCount} monitors due for check.`);
 
-    for (const monitor of dueRes.rows) {
-      // Prevent double scheduling by immediately moving next_check_at forward (temporary lock)
-      const temporaryNextCheck = new Date(Date.now() + monitor.interval_minutes * 60 * 1000);
-      await query(
-        'UPDATE monitors SET next_check_at = $1 WHERE id = $2',
-        [temporaryNextCheck, monitor.id]
-      );
+    // Bulk enqueue jobs to BullMQ
+    const jobs = dueRes.rows.map(monitor => ({
+      name: 'ping-check',
+      data: { monitorId: monitor.id },
+      opts: {
+        jobId: `ping-${monitor.id}`,
+        removeOnComplete: true,
+        removeOnFail: true
+      }
+    }));
 
-      // Add to BullMQ ping execution queue
-      await pingQueue.add(
-        'ping-check',
-        { monitorId: monitor.id },
-        {
-          jobId: `ping-${monitor.id}`,
-          removeOnComplete: true,
-          removeOnFail: true
-        }
-      );
+    if (jobs.length > 0) {
+      await pingQueue.addBulk(jobs);
     }
   } catch (error) {
     console.error('[Scheduler] Error scanning and queueing monitors:', error);
