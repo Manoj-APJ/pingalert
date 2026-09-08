@@ -9,6 +9,7 @@
     "dev:worker": "nodemon worker-entry.js",
     "dev": "concurrently --kill-others \"npm run dev:client\" \"npm run dev:server\" \"npm run dev:worker\"",
     "build": "tsc -b && vite build",
+    "lint": "eslint .",
     "start": "node server.js",
     "start:worker": "node worker-entry.js"
   },
