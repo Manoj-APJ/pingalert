@@ -28,7 +28,12 @@ export default function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('pingalert_token'));
   const [user, setUser] = useState<any>(null);
   const [currentView, setCurrentView] = useState<string>('dashboard'); // dashboard, incidents, status-pages, settings
-  const [publicStatusSlug, setPublicStatusSlug] = useState<string | null>(null);
+  const [publicStatusSlug] = useState<string | null>(() => {
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/status/')) {
+      return window.location.pathname.split('/')[2] || null;
+    }
+    return null;
+  });
   
   // Theme state
   const [theme, setTheme] = useState<string>(localStorage.getItem('pingalert_theme') || 'dark');
@@ -69,15 +74,6 @@ export default function App() {
   // Search filter
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Parse path for public status page
-  useEffect(() => {
-    const path = window.location.pathname;
-    if (path.startsWith('/status/')) {
-      const slug = path.split('/')[2];
-      setPublicStatusSlug(slug);
-    }
-  }, []);
-
   // Theme effect
   useEffect(() => {
     const body = document.body;
@@ -89,21 +85,13 @@ export default function App() {
     localStorage.setItem('pingalert_theme', theme);
   }, [theme]);
 
-  // Load User and App Data
-  useEffect(() => {
-    if (token && !publicStatusSlug) {
-      // Fetch user profile info
-      apiRequest('/api/auth/me')
-        .then(profile => {
-          setUser(profile);
-          loadAppData();
-        })
-        .catch(err => {
-          console.error(err);
-          handleLogout();
-        });
-    }
-  }, [token, publicStatusSlug]);
+  const handleLogout = () => {
+    localStorage.removeItem('pingalert_token');
+    setToken(null);
+    setUser(null);
+    setSelectedMonitor(null);
+    setCurrentView('dashboard');
+  };
 
   const loadAppData = async () => {
     try {
@@ -122,6 +110,22 @@ export default function App() {
       console.error('Failed to load data:', err);
     }
   };
+
+  // Load User and App Data
+  useEffect(() => {
+    if (token && !publicStatusSlug) {
+      // Fetch user profile info
+      apiRequest('/api/auth/me')
+        .then(profile => {
+          setUser(profile);
+          loadAppData();
+        })
+        .catch(err => {
+          console.error(err);
+          handleLogout();
+        });
+    }
+  }, [token, publicStatusSlug]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,14 +160,6 @@ export default function App() {
     } catch (err: any) {
       setAuthError(err.message || 'Registration failed');
     }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('pingalert_token');
-    setToken(null);
-    setUser(null);
-    setSelectedMonitor(null);
-    setCurrentView('dashboard');
   };
 
   // Add Monitor
@@ -1062,7 +1058,7 @@ function UptimeCalendarGrid({ dailyHistory }: { dailyHistory: any[] }) {
   return (
     <div className="uptime-bar-container">
       {bars.map((bar, i) => {
-        let title = '';
+        let title: string;
         let className = 'uptime-bar no-data';
 
         if (bar) {
