@@ -31,7 +31,7 @@ This is where the magic happens. Instead of relying on a fragile `setInterval` l
 We'd love for you to take Pingalert for a spin on your own machine. Getting it up and running is super straightforward.
 
 ### Prerequisites
-- [Node.js](https://nodejs.org/) (v18+)
+- [Node.js](https://nodejs.org/) (`^20.19.0` or `>=22.12.0`)
 - [Docker](https://www.docker.com/) (for running PostgreSQL and Redis easily)
 
 ### Setup Steps
