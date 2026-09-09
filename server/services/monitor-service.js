@@ -96,10 +96,11 @@ export const handleCheckResult = async (monitorId, checkResult) => {
   const currentHour = new Date(now);
   currentHour.setMinutes(0, 0, 0); // Floor to nearest hour
   
-  const client = await pool.connect();
+  let client = null;
   const queueOps = [];
 
   try {
+    client = await pool.connect();
     await client.query('BEGIN');
 
     // Find current monitor details
@@ -107,7 +108,6 @@ export const handleCheckResult = async (monitorId, checkResult) => {
     const monitorRes = await client.query('SELECT * FROM monitors WHERE id = $1 FOR UPDATE', [monitorId]);
     if (monitorRes.rowCount === 0) {
       await client.query('ROLLBACK');
-      client.release();
       return;
     }
     const monitor = monitorRes.rows[0];
@@ -259,10 +259,10 @@ export const handleCheckResult = async (monitorId, checkResult) => {
 
     await client.query('COMMIT');
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (client) await client.query('ROLLBACK');
     console.error('[Monitor Service] Error processing check result transaction:', error);
   } finally {
-    client.release();
+    if (client) client.release();
   }
 
   // Execute queue operations only after successful transaction commit
