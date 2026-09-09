@@ -1099,9 +1099,11 @@ function SvgAreaChart({ history }: { history: any[] }) {
   const maxVal = Math.max(...latencies, 200); // Floor limit at 200ms
   const minVal = 0;
 
+  const divisor = history.length > 1 ? history.length - 1 : 1;
+
   // Build points path coordinates
   const points = history.map((d, index) => {
-    const x = paddingLeft + (index / (history.length - 1)) * chartWidth;
+    const x = paddingLeft + (index / divisor) * chartWidth;
     const y = paddingTop + chartHeight - ((d.avgResponseTimeMs - minVal) / (maxVal - minVal)) * chartHeight;
     return { x, y };
   });
@@ -1156,7 +1158,7 @@ function SvgAreaChart({ history }: { history: any[] }) {
       {history.map((d, i) => {
         // Render label only for every 4th element to avoid overcrowding labels
         if (i % 4 !== 0) return null;
-        const x = paddingLeft + (i / (history.length - 1)) * chartWidth;
+        const x = paddingLeft + (i / divisor) * chartWidth;
         const timeStr = new Date(d.hour).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         return (
           <text key={i} x={x} y={height - 8} fill="var(--text-secondary)" fontSize="10" textAnchor="middle">

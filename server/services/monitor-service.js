@@ -171,7 +171,10 @@ export const handleCheckResult = async (monitorId, checkResult) => {
         `INSERT INTO hourly_stats (monitor_id, hour, ping_count, up_count, avg_response_time_ms)
          VALUES ($1, $2, 1, 1, $3)
          ON CONFLICT (monitor_id, hour) DO UPDATE SET
-           avg_response_time_ms = ((hourly_stats.avg_response_time_ms * hourly_stats.ping_count) + EXCLUDED.avg_response_time_ms) / (hourly_stats.ping_count + 1),
+           avg_response_time_ms = CASE
+             WHEN hourly_stats.up_count = 0 THEN EXCLUDED.avg_response_time_ms
+             ELSE ((hourly_stats.avg_response_time_ms * hourly_stats.up_count) + EXCLUDED.avg_response_time_ms) / (hourly_stats.up_count + 1)
+           END,
            ping_count = hourly_stats.ping_count + 1,
            up_count = hourly_stats.up_count + 1`,
         [monitorId, currentHour, checkResult.responseTimeMs]
@@ -244,14 +247,13 @@ export const handleCheckResult = async (monitorId, checkResult) => {
         ));
       }
 
-      // Save/Update Hourly Stats (Record failure in latency history)
+      // Save/Update Hourly Stats (Record failure in uptime tracking without polluting latency)
       await client.query(
         `INSERT INTO hourly_stats (monitor_id, hour, ping_count, up_count, avg_response_time_ms)
-         VALUES ($1, $2, 1, 0, $3)
+         VALUES ($1, $2, 1, 0, 0.0)
          ON CONFLICT (monitor_id, hour) DO UPDATE SET
-           avg_response_time_ms = ((hourly_stats.avg_response_time_ms * hourly_stats.ping_count) + EXCLUDED.avg_response_time_ms) / (hourly_stats.ping_count + 1),
            ping_count = hourly_stats.ping_count + 1`,
-        [monitorId, currentHour, checkResult.responseTimeMs]
+        [monitorId, currentHour]
       );
     }
 

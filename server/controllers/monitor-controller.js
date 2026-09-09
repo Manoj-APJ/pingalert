@@ -242,7 +242,7 @@ export const getMonitorStats = async (req, res) => {
          DATE_TRUNC('day', hour) as date, 
          SUM(ping_count)::integer as total_pings, 
          SUM(up_count)::integer as total_up, 
-         AVG(avg_response_time_ms)::double precision as avg_latency
+         COALESCE(SUM(avg_response_time_ms * up_count) / NULLIF(SUM(up_count), 0), 0.0)::double precision as avg_latency
        FROM hourly_stats 
        WHERE monitor_id = $1 AND hour >= NOW() - INTERVAL '30 days' 
        GROUP BY DATE_TRUNC('day', hour) 
@@ -255,7 +255,7 @@ export const getMonitorStats = async (req, res) => {
       `SELECT 
          COALESCE(SUM(ping_count), 0)::integer as total_pings,
          COALESCE(SUM(up_count), 0)::integer as total_up,
-         COALESCE(AVG(avg_response_time_ms), 0.0)::double precision as avg_latency
+         COALESCE(SUM(avg_response_time_ms * up_count) / NULLIF(SUM(up_count), 0), 0.0)::double precision as avg_latency
        FROM hourly_stats 
        WHERE monitor_id = $1 AND hour >= NOW() - INTERVAL '30 days'`,
       [id]
