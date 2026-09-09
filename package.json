@@ -8,6 +8,7 @@
   },
   "scripts": {
     "test": "vitest run",
+    "test:ci": "vitest run",
     "test:watch": "vitest",
     "dev:client": "vite",
     "dev:server": "nodemon server.js",

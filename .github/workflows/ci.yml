@@ -30,6 +30,10 @@ jobs:
         id: install
         run: npm ci
 
+      - name: Run Test Suite (Vitest)
+        id: test
+        run: npm run test:ci
+
       - name: Code Quality & Linting (ESLint)
         id: lint
         run: npm run lint
@@ -53,6 +57,7 @@ jobs:
           echo "| Step | Status | Description |" >> $GITHUB_STEP_SUMMARY
           echo "| :--- | :---: | :--- |" >> $GITHUB_STEP_SUMMARY
           echo "| **Clean Dependency Install** | ${{ steps.install.outcome == 'success' && '✅ Passed' || '❌ Failed' }} | Pure \`npm ci\` with strict peer resolution |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Unit Tests (Vitest)** | ${{ steps.test.outcome == 'success' && '✅ Passed' || '❌ Failed' }} | Fully-mocked unit tests, no external services required |" >> $GITHUB_STEP_SUMMARY
           echo "| **ESLint Quality Checks** | ${{ steps.lint.outcome == 'success' && '✅ Passed' || '❌ Failed' }} | React hooks & TypeScript standards |" >> $GITHUB_STEP_SUMMARY
           echo "| **TypeScript & Vite Bundle** | ${{ steps.build.outcome == 'success' && '✅ Passed' || '❌ Failed' }} | Strict \`tsc -b\` & client asset bundling |" >> $GITHUB_STEP_SUMMARY
           echo "| **Backend Syntax Validation** | ${{ steps.syntax.outcome == 'success' && '✅ Passed' || '❌ Failed' }} | Verified syntax across all server & worker scripts |" >> $GITHUB_STEP_SUMMARY
