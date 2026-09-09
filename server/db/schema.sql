@@ -75,6 +75,8 @@ CREATE TABLE IF NOT EXISTS email_logs (
     recipient VARCHAR(255) NOT NULL,
     subject VARCHAR(255) NOT NULL,
     body TEXT NOT NULL,
+    status VARCHAR(20) DEFAULT 'sent',
+    error TEXT,
     sent_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -95,5 +97,11 @@ BEGIN
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'monitors_timeout_seconds_check') THEN
         ALTER TABLE monitors ADD CONSTRAINT monitors_timeout_seconds_check CHECK (timeout_seconds >= 1 AND timeout_seconds <= 300);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'email_logs' AND column_name = 'status') THEN
+        ALTER TABLE email_logs ADD COLUMN status VARCHAR(20) DEFAULT 'sent';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'email_logs' AND column_name = 'error') THEN
+        ALTER TABLE email_logs ADD COLUMN error TEXT;
     END IF;
 END $$;

@@ -17,6 +17,15 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   fixing the above: if the initial connection itself failed, the `catch` block
   called `client.query('ROLLBACK')` on a `null` client, crashing before the
   original error could even be logged. Fixed by guarding the rollback call.
+- **Unpropagated SMTP send failures and false success logging in alert worker (BUG-007)** — when
+  an email alert dispatch via nodemailer failed, the error was swallowed in a try/catch block
+  and execution fell through to an unconditional insert into `email_logs`. Because `email_logs`
+  lacked status and error tracking, failed dispatches appeared as successful in the database and UI,
+  and BullMQ completed the job without triggering failure handlers. Fixed by adding `status`
+  (`'sent'`, `'failed'`, `'mocked'`) and `error` columns to `email_logs`, recording failures with
+  error details, re-throwing errors to trigger BullMQ retries, configuring `alertQueue` retry
+  defaults matching ping retry conventions (3 attempts, 5s delay), only recording the final outcome
+  to `email_logs` (preventing premature failure spam during active retries), and surfacing delivery statuses in the UI.
 
 ### Notable fixes prior to this changelog
 - Fixed a TOCTOU DNS-rebinding SSRF vulnerability in the ping service by

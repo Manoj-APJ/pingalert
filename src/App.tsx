@@ -785,6 +785,7 @@ export default function App() {
                         <th>Website Name</th>
                         <th>Sent To</th>
                         <th>Subject / Event</th>
+                        <th>Delivery Status</th>
                         <th>Timestamp</th>
                       </tr>
                     </thead>
@@ -797,6 +798,25 @@ export default function App() {
                             <strong style={{ color: log.subject.includes('back UP') ? 'var(--success)' : 'var(--error)' }}>
                               {log.subject}
                             </strong>
+                          </td>
+                          <td>
+                            <span
+                              className={`badge ${
+                                log.status === 'failed'
+                                  ? 'badge-error'
+                                  : log.status === 'mocked'
+                                  ? 'badge-warning'
+                                  : 'badge-success'
+                              }`}
+                              title={log.error || ''}
+                            >
+                              {log.status ? log.status.toUpperCase() : 'SENT'}
+                            </span>
+                            {log.error && (
+                              <div style={{ fontSize: '11px', color: 'var(--error)', marginTop: '4px', maxWidth: '250px', wordBreak: 'break-word' }}>
+                                {log.error}
+                              </div>
+                            )}
                           </td>
                           <td>{new Date(log.sent_at).toLocaleString()}</td>
                         </tr>

@@ -21,6 +21,8 @@ export const config = {
   rateLimitMaxReq: parseInt(process.env.RATE_LIMIT_MAX_REQ || '1000', 10),
   pingRetryCount: parseInt(process.env.PING_RETRY_COUNT || '3', 10),
   pingRetryDelaySec: parseInt(process.env.PING_RETRY_DELAY_SEC || '5', 10),
+  alertRetryCount: parseInt(process.env.ALERT_RETRY_COUNT || process.env.PING_RETRY_COUNT || '3', 10),
+  alertRetryDelaySec: parseInt(process.env.ALERT_RETRY_DELAY_SEC || process.env.PING_RETRY_DELAY_SEC || '5', 10),
   pingConcurrency: parseInt(process.env.PING_CONCURRENCY || '50', 10),
   alertConcurrency: parseInt(process.env.ALERT_CONCURRENCY || '10', 10),
   dbPoolSize: parseInt(process.env.DB_POOL_SIZE || '70', 10),

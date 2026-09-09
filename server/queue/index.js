@@ -21,6 +21,11 @@ export const pingQueue = new Queue(pingQueueName, {
 export const alertQueue = new Queue(alertQueueName, {
   connection: connectionOpts,
   defaultJobOptions: {
+    attempts: config.alertRetryCount,
+    backoff: {
+      type: 'fixed',
+      delay: config.alertRetryDelaySec * 1000
+    },
     removeOnComplete: true,
     removeOnFail: 100
   }
