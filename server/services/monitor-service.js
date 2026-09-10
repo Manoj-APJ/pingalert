@@ -223,6 +223,15 @@ export const handleCheckResult = async (monitorId, checkResult) => {
            WHERE id = $7`,
           [nextStatus, now, lastStatusChangeAt || now, consecutiveFailures, nextCheck, now, monitorId]
         );
+
+        // Retries exhausted: record final failure outcome in hourly_stats
+        await client.query(
+          `INSERT INTO hourly_stats (monitor_id, hour, ping_count, up_count, avg_response_time_ms)
+           VALUES ($1, $2, 1, 0, 0.0)
+           ON CONFLICT (monitor_id, hour) DO UPDATE SET
+             ping_count = hourly_stats.ping_count + 1`,
+          [monitorId, currentHour]
+        );
       } else {
         // transient failure! Queue an immediate check retry with delay
         console.log(`Monitor ${monitor.name} failed. Attempt ${consecutiveFailures}/${config.pingRetryCount}. Scheduling retry in ${config.pingRetryDelaySec}s.`);
@@ -235,26 +244,23 @@ export const handleCheckResult = async (monitorId, checkResult) => {
           [consecutiveFailures, now, now, monitorId]
         );
 
-        queueOps.push(() => pingQueue.add(
-          'ping-retry',
-          { monitorId },
-          { 
-            jobId: `ping-${monitorId}`,
-            delay: config.pingRetryDelaySec * 1000,
-            removeOnComplete: true,
-            removeOnFail: true
+        const retryJobId = `ping-retry-${monitorId}-${consecutiveFailures}`;
+        queueOps.push(async () => {
+          const enqueuedJob = await pingQueue.add(
+            'ping-retry',
+            { monitorId },
+            { 
+              jobId: retryJobId,
+              delay: config.pingRetryDelaySec * 1000,
+              removeOnComplete: true,
+              removeOnFail: true
+            }
+          );
+          if (!enqueuedJob) {
+            console.warn(`[Monitor Service: Retry] BullMQ deduplicated or failed to enqueue retry job for monitor ${monitorId} (jobId: ${retryJobId})`);
           }
-        ));
+        });
       }
-
-      // Save/Update Hourly Stats (Record failure in uptime tracking without polluting latency)
-      await client.query(
-        `INSERT INTO hourly_stats (monitor_id, hour, ping_count, up_count, avg_response_time_ms)
-         VALUES ($1, $2, 1, 0, 0.0)
-         ON CONFLICT (monitor_id, hour) DO UPDATE SET
-           ping_count = hourly_stats.ping_count + 1`,
-        [monitorId, currentHour]
-      );
     }
 
     await client.query('COMMIT');
