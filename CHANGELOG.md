@@ -26,6 +26,18 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   error details, re-throwing errors to trigger BullMQ retries, configuring `alertQueue` retry
   defaults matching ping retry conventions (3 attempts, 5s delay), only recording the final outcome
   to `email_logs` (preventing premature failure spam during active retries), and surfacing delivery statuses in the UI.
+- **JobId namespace collisions and dropped ping checks in `pingQueue` (B2)** — transient failure
+  retries in `monitor-service.js` and immediate checks in `monitor-controller.js` used the same static
+  `jobId: ping-${id}` as the scheduler. Because BullMQ deduplicates active jobs by ID, retry jobs scheduled
+  while the original check was active were silently dropped, preventing 5-second retries from executing.
+  Fixed by giving retries a distinct namespace (`ping-retry-${monitorId}-${consecutiveFailures}`), omitting
+  static job IDs on one-off immediate checks (letting BullMQ assign unique IDs), and adding defensive null-check
+  warnings across all queue call sites.
+- **Premature hourly uptime degradation from transient retry attempts (B3)** — every ping failure
+  in a retry sequence unconditionally wrote a failure to `hourly_stats`, degrading hourly uptime even
+  when a retry succeeded (e.g. 33% uptime for a site that quickly recovered). Fixed by deferring `hourly_stats`
+  failure writes until the retry sequence resolves: recording exactly one `up` increment on success, and
+  exactly one failure entry only when all configured retries are exhausted.
 
 ### Notable fixes prior to this changelog
 - Fixed a TOCTOU DNS-rebinding SSRF vulnerability in the ping service by

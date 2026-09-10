@@ -45,12 +45,14 @@ export const createMonitor = async (req, res) => {
 
     const monitor = insertRes.rows[0];
 
-    // Trigger an immediate check on creation
-    await pingQueue.add('ping-check', { monitorId: monitor.id }, {
-      jobId: `ping-${monitor.id}`,
+    // Trigger an immediate check on creation (let BullMQ auto-generate unique jobId)
+    const enqueuedJob = await pingQueue.add('ping-check', { monitorId: monitor.id }, {
       removeOnComplete: true,
       removeOnFail: true
     });
+    if (!enqueuedJob) {
+      console.warn(`[Monitor Controller: Create] BullMQ deduplicated or failed to enqueue immediate check for monitor ${monitor.id}`);
+    }
 
     res.status(201).json(monitor);
   } catch (error) {
@@ -173,13 +175,15 @@ export const updateMonitor = async (req, res) => {
 
     const updatedMonitor = updateRes.rows[0];
 
-    // Trigger check immediately if unpaused
+    // Trigger check immediately if unpaused (let BullMQ auto-generate unique jobId)
     if (is_active && !currentMonitor.is_active) {
-      await pingQueue.add('ping-check', { monitorId: id }, {
-        jobId: `ping-${id}`,
+      const enqueuedJob = await pingQueue.add('ping-check', { monitorId: id }, {
         removeOnComplete: true,
         removeOnFail: true
       });
+      if (!enqueuedJob) {
+        console.warn(`[Monitor Controller: Reactivate] BullMQ deduplicated or failed to enqueue immediate check for monitor ${id}`);
+      }
     }
 
     res.json(updatedMonitor);

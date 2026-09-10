@@ -32,7 +32,14 @@ export const scheduleDueMonitors = async () => {
     }));
 
     if (jobs.length > 0) {
-      await pingQueue.addBulk(jobs);
+      const addedJobs = await pingQueue.addBulk(jobs);
+      if (Array.isArray(addedJobs)) {
+        jobs.forEach((jobDef, idx) => {
+          if (!addedJobs[idx]) {
+            console.warn(`[Scheduler: Scheduled Ping] BullMQ deduplicated or failed to enqueue job for monitor ${jobDef.data.monitorId} (jobId: ${jobDef.opts.jobId})`);
+          }
+        });
+      }
     }
   } catch (error) {
     console.error('[Scheduler] Error scanning and queueing monitors:', error);
