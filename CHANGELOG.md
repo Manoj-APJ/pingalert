@@ -38,6 +38,15 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   when a retry succeeded (e.g. 33% uptime for a site that quickly recovered). Fixed by deferring `hourly_stats`
   failure writes until the retry sequence resolves: recording exactly one `up` increment on success, and
   exactly one failure entry only when all configured retries are exhausted.
+- **Latency timer inflated by DNS pre-resolution (B1)** — `performPing` recorded start time using `Date.now()`
+  before executing SSRF DNS pre-resolution via `dns.lookup()`, polluting reported HTTP response times with
+  DNS resolution round-trip latency. Fixed by starting the latency timer after DNS pre-resolution completes
+  and switching to `performance.now()` for monotonic precision.
+- **Unverified 'unknown' status monitors displayed as operational on public status pages (B4)** — when
+  status page monitors were in 'unknown' status (freshly created or unverified), `downCount` was 0 and
+  the page defaulted to 'operational' with a green banner. Fixed by introducing a distinct `'pending'` overall
+  status when unverified monitors are present with zero down monitors (preserving outage precedence),
+  and updating the frontend banner and badges to display pending status distinctly.
 
 ### Notable fixes prior to this changelog
 - Fixed a TOCTOU DNS-rebinding SSRF vulnerability in the ping service by

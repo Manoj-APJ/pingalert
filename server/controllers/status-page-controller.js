@@ -239,6 +239,26 @@ export const deleteStatusPage = async (req, res) => {
 };
 
 /**
+ * Determines the overall status summary from monitor statuses
+ * Precedence: any down -> major/partial outage > any unknown -> pending > all up -> operational
+ */
+export const computeOverallStatus = (monitors) => {
+  if (!monitors || monitors.length === 0) return 'operational';
+  const statuses = monitors.map(m => m.status);
+  const downCount = statuses.filter(s => s === 'down').length;
+  const hasUnknown = statuses.some(s => s === 'unknown');
+
+  if (downCount === statuses.length) {
+    return 'major_outage';
+  } else if (downCount > 0) {
+    return 'partial_outage';
+  } else if (hasUnknown) {
+    return 'pending';
+  }
+  return 'operational';
+};
+
+/**
  * Public facing endpoint to load status page details, associated monitor status,
  * 30-day daily histories, and recent incidents (unauthenticated).
  */
@@ -273,18 +293,9 @@ export const getPublicStatusPage = async (req, res) => {
 
     let dailyHistories = {};
     let recentIncidents = [];
-    let overallStatus = 'operational'; // operational, partial_outage, major_outage
+    let overallStatus = computeOverallStatus(monitors);
 
     if (monitorIds.length > 0) {
-      // 3. Determine overall status summary
-      const statuses = monitors.map(m => m.status);
-      const downCount = statuses.filter(s => s === 'down').length;
-
-      if (downCount === statuses.length) {
-        overallStatus = 'major_outage';
-      } else if (downCount > 0) {
-        overallStatus = 'partial_outage';
-      }
 
       // 4. Fetch last 30 days of daily aggregates for each associated monitor
       const statsRes = await query(

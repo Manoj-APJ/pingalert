@@ -538,6 +538,12 @@ a:hover {
   color: var(--success);
 }
 
+.status-summary-banner.pending {
+  background-color: var(--warning-bg);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: var(--warning);
+}
+
 .status-summary-banner.outage {
   background-color: var(--error-bg);
   border: 1px solid rgba(239, 68, 68, 0.3);
@@ -583,6 +589,10 @@ a:hover {
 
 .public-monitor-status.down {
   color: var(--error);
+}
+
+.public-monitor-status.pending {
+  color: var(--warning);
 }
 
 /* Outage logs list */

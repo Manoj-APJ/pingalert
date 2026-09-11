@@ -1266,9 +1266,13 @@ function PublicStatusView({ slug, theme, setTheme }: { slug: string, theme: stri
       </header>
 
       {/* Overall Banner */}
-      <div className={`status-summary-banner ${overallStatus === 'operational' ? 'operational' : 'outage'}`}>
+      <div className={`status-summary-banner ${
+        overallStatus === 'operational' ? 'operational' :
+        overallStatus === 'pending' ? 'pending' : 'outage'
+      }`}>
         <span>
           {overallStatus === 'operational' ? '🟢 All Systems Operational' : 
+           overallStatus === 'pending' ? '🟡 Monitoring Pending First Check' : 
            overallStatus === 'partial_outage' ? '🟡 Partial Service Outage' : 
            '🔴 Major System Outage'}
         </span>
@@ -1288,8 +1292,8 @@ function PublicStatusView({ slug, theme, setTheme }: { slug: string, theme: stri
                 <div className="public-monitor-info">
                   <span className="public-monitor-name">{m.name}</span>
                 </div>
-                <span className={`public-monitor-status ${m.status === 'up' ? 'up' : 'down'}`}>
-                  {m.status === 'up' ? 'Operational' : 'Major Outage'}
+                <span className={`public-monitor-status ${m.status === 'up' ? 'up' : m.status === 'down' ? 'down' : 'pending'}`}>
+                  {m.status === 'up' ? 'Operational' : m.status === 'down' ? 'Major Outage' : 'Pending Check'}
                 </span>
               </div>
               {/* Uptime bars */}
