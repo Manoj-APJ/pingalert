@@ -28,10 +28,10 @@ const isPrivateIP = (ipStr) => {
  * Executes a network ping (HTTP request) to a monitor URL.
  */
 export const performPing = async (monitor) => {
-  const startTime = Date.now();
   const timeoutMs = (monitor.timeout_seconds || 10) * 1000;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let startTime = performance.now();
 
   try {
     const parsedUrl = new URL(monitor.url);
@@ -51,6 +51,9 @@ export const performPing = async (monitor) => {
       throw new Error(`DNS Resolution failed: ${dnsErr.message}`);
     }
 
+    // Start latency stopwatch AFTER DNS pre-resolution completes
+    startTime = performance.now();
+
     const response = await fetch(monitor.url, {
       method: 'GET',
       headers: {
@@ -60,7 +63,7 @@ export const performPing = async (monitor) => {
       signal: controller.signal
     });
 
-    const responseTimeMs = Date.now() - startTime;
+    const responseTimeMs = Math.round(performance.now() - startTime);
     clearTimeout(timeoutId);
 
     // Consider 2xx and 3xx status codes as "UP". 
@@ -74,7 +77,7 @@ export const performPing = async (monitor) => {
     };
   } catch (error) {
     clearTimeout(timeoutId);
-    const responseTimeMs = Date.now() - startTime;
+    const responseTimeMs = Math.round(performance.now() - startTime);
     let cause = error.message || 'Unknown network error';
     if (error.name === 'AbortError') {
       cause = `Timeout after ${monitor.timeout_seconds || 10}s`;
