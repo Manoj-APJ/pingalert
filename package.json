@@ -2,6 +2,27 @@
   "name": "pingalert",
   "private": true,
   "version": "0.0.0",
+  "description": "Self-hosted HTTP uptime monitor with BullMQ-backed background workers, SSRF-safe ping checks, email alerting via Nodemailer, incident tracking, and public status pages.",
+  "keywords": [
+    "uptime-monitor",
+    "website-monitoring",
+    "self-hosted",
+    "status-page",
+    "alerting",
+    "bullmq",
+    "redis",
+    "postgresql",
+    "incident-management",
+    "email-alerts",
+    "http-monitoring",
+    "nodejs",
+    "react",
+    "typescript",
+    "vite",
+    "ssrf-protection",
+    "devops",
+    "site-reliability"
+  ],
   "type": "module",
   "engines": {
     "node": "^22.12.0 || >=24.0.0"

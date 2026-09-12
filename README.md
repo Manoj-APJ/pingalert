@@ -1,90 +1,211 @@
-# Pingalert 🚨
+# PingAlert
 
-Welcome to **Pingalert**! 👋 
+Self-hosted HTTP/S uptime monitor with BullMQ worker queues, email alerting, incident tracking, and public status pages.
 
-Have you ever worried that your servers or APIs might go down in the middle of the night without you knowing? That's exactly why Pingalert exists. We built it to provide a robust, reliable, and real-time uptime monitoring and alerting system. It continuously checks your endpoints, logs their response times, and immediately notifies you if things go south—saving you from those dreaded "is the site down?" messages from your users.
-
-## 🏗️ Architecture Under the Hood
-
-We wanted Pingalert to be lightning fast but also durable enough to handle thousands of concurrent monitoring checks without dropping the ball. Here's a look at the engine powering it:
-
-### The Frontend (React + Vite + TypeScript)
-The client interface is a snappy Single Page Application built with React. It uses Vite for blazing-fast Hot Module Replacement during development and optimized builds for production. TypeScript ensures our UI components are strictly typed and less prone to runtime errors.
-
-### The Backend API (Node.js + Express)
-The core REST API handles user authentication (via JWT), rate limiting, and CRUD operations for managing your monitors. It's built with strict payload size limits and optimized configurations to prevent abuse and ensure stability.
-
-### The Database (PostgreSQL)
-We use PostgreSQL as our source of truth. It stores all user profiles, monitor configurations, and historical ping logs. To prevent bottlenecks, our database connection pool is precisely tuned to handle high concurrency from our background workers. 
-
-### The Engine Room (BullMQ + Redis)
-This is where the magic happens. Instead of relying on a fragile `setInterval` loop within the main API server, we decoupled the actual "pinging" logic into dedicated background workers using **BullMQ**. 
-- **Redis** acts as the high-speed message broker.
-- **Workers** concurrently pick up jobs, execute HTTP/HTTPS pings, and record the results.
-- **Resilience:** The workers are equipped with smart retry strategies. If a server takes a brief hiccup, the worker will retry a few times before officially declaring it "down," drastically reducing false-positive alerts.
-- **Alerting:** Once a monitor is confirmed down, another worker handles dispatching the alert emails asynchronously (via NodeMailer).
+[![CI](https://github.com/Manoj-APJ/pingalert/actions/workflows/ci.yml/badge.svg)](https://github.com/Manoj-APJ/pingalert/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-%5E22.12%20%7C%7C%20%3E%3D24-green)](https://nodejs.org)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue?logo=typescript)](https://www.typescriptlang.org)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791?logo=postgresql)](https://www.postgresql.org)
+[![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis)](https://redis.io)
 
 ---
 
-## 🚀 Running Pingalert Locally
+## Preview
 
-We'd love for you to take Pingalert for a spin on your own machine. Getting it up and running is super straightforward.
+### Dashboard & Fleet Status
+![Monitor Dashboard](docs/screenshots/dashboard.png)
+
+### Monitor Analytics & Uptime History
+![Monitor Detail](docs/screenshots/monitor_detail.png)
+
+### Public Status Page
+![Public Status Page](docs/screenshots/status_page.png)
+
+---
+
+## Architecture
+
+PingAlert uses three decoupled runtimes: the **React SPA**, the **Express API**, and a **Background Worker Daemon**. Network probing and alert dispatches run independently of the API process.
+
+```mermaid
+flowchart TB
+    subgraph Client ["Frontend (React 19 SPA)"]
+        UI["Web Dashboard & Status Pages"]
+    end
+
+    subgraph Server ["API Server (Express :3001)"]
+        Endpoints["REST API & Auth Handlers"]
+    end
+
+    subgraph Broker ["Message Broker (Redis 7)"]
+        QPing["Queue: monitor-pings"]
+        QAlert["Queue: alerts"]
+    end
+
+    subgraph Database ["Database (PostgreSQL 15)"]
+        DB[("PostgreSQL Store<br/>monitors, stats, incidents, logs")]
+    end
+
+    subgraph Workers ["Worker Daemon (worker-entry.js)"]
+        Scheduler["Scheduler<br/>10s Poller & Cleanup"]
+        PingWorker["Ping Worker (Concurrency: 50)<br/>SSRF Check & Latency Probe"]
+        AlertWorker["Alert Worker (Concurrency: 10)<br/>SMTP Dispatch & Logger"]
+    end
+
+    subgraph External ["External Services"]
+        Targets["Monitored HTTP/S Targets"]
+        SMTP["SMTP Mail Server"]
+    end
+
+    UI <-->|"REST API / JWT"| Endpoints
+    Endpoints <-->|"Read / Write"| DB
+
+    Scheduler -->|"1. Fetch due monitors"| DB
+    Scheduler -->|"2. Enqueue check"| QPing
+
+    QPing -->|"Pull job"| PingWorker
+    PingWorker -->|"3. Probe target"| Targets
+    PingWorker -->|"4. Update state & metrics"| DB
+    PingWorker -.->|"5. Enqueue alert (DOWN / UP)"| QAlert
+    PingWorker -.->|"Retry on failure"| QPing
+
+    QAlert -->|"Pull job"| AlertWorker
+    AlertWorker -->|"6. Send notification"| SMTP
+    AlertWorker -->|"7. Write audit log"| DB
+```
+
+### Execution Flow
+
+```
+Scheduler (every 10s)
+  │
+  ├─► Queries active monitors where next_check_at <= NOW()
+  │
+  └─► Enqueues job into BullMQ "monitor-pings"
+        │
+        ▼
+Ping Worker (concurrency: 50)
+  │
+  ├─► 1. DNS Pre-Resolution: Validates target IP against private/loopback CIDRs (SSRF safe)
+  ├─► 2. HTTP Request: Executes request with redirect: manual, records latency (performance.now())
+  │
+  ├───► SUCCESS (2xx/3xx):
+  │       • Sets status = 'up'
+  │       • Writes hourly latency and up_count to hourly_stats
+  │       • Closes open incident (if recovering from outage)
+  │       • Enqueues UP notification to "alerts" queue
+  │
+  └───► FAILURE (timeout / network error / 4xx / 5xx):
+          • Increments consecutive_failures
+          • If failures < retry threshold (default: 3):
+          │   └─► Schedules immediate retry check after 5s
+          • If failures >= retry threshold:
+              • Sets status = 'down'
+              • Opens new incident record
+              • Enqueues DOWN notification to "alerts" queue
+                    │
+                    ▼
+              Alert Worker (concurrency: 10)
+                • Dispatches HTML + text email via Nodemailer
+                • Writes delivery audit log to email_logs (sent / failed / mocked)
+```
+
+---
+
+## Core Features
+
+- **Decoupled Job Queues**: Pings and email deliveries run in separate BullMQ worker processes, isolating API performance from network traffic.
+- **SSRF Safe**: DNS is pre-resolved before connection. Rejects private, loopback, link-local, and IPv4-mapped IPv6 ranges. Redirects are not followed automatically.
+- **Flap & Spike Resistance**: Configurable retry counts before marking an endpoint `DOWN` prevent false alarms on single transient hiccups.
+- **Incident Lifecycle**: Outages automatically open an incident with cause and timestamp, and resolve with calculated downtime when checks recover.
+- **Public Status Pages**: Shareable dashboards (`/status/:slug`) showing live health, 30-day uptime bars, and active/resolved incidents without login.
+- **Email Alert Auditing**: Tracks all UP/DOWN notification attempts (`sent`, `failed`, or `mocked`) with automatic 50-day retention cleanup.
+
+---
+
+## Quick Start
 
 ### Prerequisites
-- [Node.js](https://nodejs.org/) (`^20.19.0` or `>=22.12.0`)
-- [Docker](https://www.docker.com/) (for running PostgreSQL and Redis easily)
 
-### Setup Steps
+- **Node.js** `>= 22.12.0` or `>= 24.0.0`
+- **Docker** & **Docker Compose**
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/Manoj-APJ/pingalert.git
-   cd pingalert
-   ```
+### 1. Setup
 
-2. **Set up your environment variables:**
-   Copy the example file and fill in your details (especially if you want to test email alerts).
-   ```bash
-   cp .env.example .env
-   ```
+```bash
+git clone https://github.com/Manoj-APJ/pingalert.git
+cd pingalert
+npm install
+cp .env.example .env
+```
 
-3. **Spin up the database and message broker:**
-   We've included a Docker Compose file to get PostgreSQL and Redis running instantly.
-   ```bash
-   docker-compose up -d
-   ```
+### 2. Start PostgreSQL & Redis
 
-4. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+```bash
+docker-compose up -d
+```
 
-5. **Start the application!**
-   This single command uses `concurrently` to boot up the React client, the Express backend, and the background workers all at once.
-   ```bash
-   npm run dev
-   ```
-   
-Your frontend should now be accessible at `http://localhost:5173` (or whichever port Vite chooses), and the API will run on `http://localhost:3001`.
+### 3. Run Development Services
+
+```bash
+npm run dev
+```
+
+Starts the Vite frontend (`:5173`), Express API (`:3001`), and background worker daemon concurrently. Database tables migrate automatically on boot.
 
 ---
 
-## 🤝 Let's Build Together
+## Configuration
 
-Pingalert is growing, and there's always room for improvement! Whether you want to add SMS alerting, build a beautiful new dashboard widget, or optimize our worker queries, we warmly welcome your contributions.
+Key variables in `.env`:
 
-**How to contribute:**
-1. Fork the repository.
-2. Create a new branch for your feature or bug fix (`git checkout -b feature/awesome-new-thing`).
-3. Make your changes and test them locally.
-4. Commit your changes and push to your fork.
-5. Open a **Pull Request** to our main branch.
-
-Let's make downtime a thing of the past. Happy coding! 💻
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `PORT` | `3001` | API server port |
+| `JWT_SECRET` | *(required in prod)* | Secret key for JWT signing |
+| `DATABASE_URL` | `postgres://postgres:postgres@localhost:5432/pingalert` | PostgreSQL connection URL |
+| `REDIS_URL` | `redis://localhost:6379` | Redis connection URL |
+| `PING_RETRY_COUNT` | `3` | Consecutive failures before marking DOWN |
+| `PING_RETRY_DELAY_SEC` | `5` | Delay in seconds between retries |
+| `PING_CONCURRENCY` | `50` | Maximum parallel ping checks |
+| `ALERT_CONCURRENCY` | `10` | Maximum parallel email jobs |
+| `SMTP_HOST` | *(empty)* | SMTP hostname (logs mock alert to console if empty) |
+| `SMTP_PORT` | `587` | SMTP port |
+| `SMTP_USER` / `SMTP_PASS` | *(empty)* | SMTP credentials |
+| `SMTP_FROM` | `alerts@pingalert.com` | Alert sender email address |
 
 ---
 
-## 📄 License
+## Production
 
-This project is licensed under the [MIT License](LICENSE).
+```bash
+# Build frontend
+npm run build
+
+# Start API server
+npm start
+
+# Start background workers (separate process)
+npm run start:worker
+```
+
+---
+
+## Testing
+
+```bash
+npm test              # Run unit tests (Vitest)
+npm run lint          # Run ESLint
+npm run build         # Typecheck & production build
+```
+
+Tests run with mocked database and queue adapters — no running database or Redis required.
+
+---
+
+## License
+
+[MIT](LICENSE)
 
