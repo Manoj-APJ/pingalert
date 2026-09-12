@@ -147,7 +147,7 @@ export const updateMonitor = async (req, res) => {
     if (isNaN(nextTimeout) || nextTimeout < 1 || nextTimeout > 300) {
       return res.status(400).json({ error: 'Timeout must be a number between 1 and 300 seconds.' });
     }
-    
+
     let nextActive = currentMonitor.is_active;
     let nextCheck = currentMonitor.next_check_at;
     let nextStatus = currentMonitor.status;

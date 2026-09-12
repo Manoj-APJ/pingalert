@@ -5,6 +5,26 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- Framer Motion for route transitions, staggered list/card reveals, and micro-interactions (hover/press scale) across monitors, incidents, status pages, and email logs.
+- Non-blocking toast notification system (`ToastProvider` / `useToast`) for create, pause/resume, delete, and copy-URL actions.
+- Skeleton loading states and shimmer placeholders to replace blank screens during data fetches.
+- Animated `NumberCounter` for uptime percentages and stat figures; `PulseDot` for real-time status indication.
+- Warm editorial visual design system: serif display typography (Fraunces/Newsreader) for headings and hero numbers, Inter for body/data/chrome, pastel pill status badges, and pill-shaped buttons/segmented controls.
+- Hero treatment (ambient gradient backdrop, serif headline, trust badges) on `AuthView` and `PublicStatusView`.
+- `lucide-react` icon set, replacing emoji-based icons throughout.
+- `rollup-plugin-visualizer` (dev) for bundle size analysis.
+
+### Changed
+- Refactored the monolithic `App.tsx` (1,371 lines) into modular, strictly-typed feature components under `src/components/`, `src/types/`, `src/lib/`, and `src/context/`.
+- Route-based code splitting via `React.lazy`/`Suspense` for `MonitorDetail`, `PublicStatusView`, `StatusPageList`, `IncidentList`, `EmailLogsList`, and `SettingsView`.
+- Vite/Rollup output now chunks vendor React, Framer Motion, and Lucide Icons separately for better caching.
+- All motion respects `prefers-reduced-motion` via `useReducedMotion()`.
+
+### Performance
+- Initial entry bundle reduced from 446.88 kB to 63.34 kB (gzip: 127.87 kB → 13.53 kB) — an 86% reduction.
+- Six views moved to on-demand lazy chunks (5.4–19.8 kB each) instead of shipping in the main bundle.
+
 ### Fixed
 - **Double `client.release()` in `handleCheckResult`** — the "monitor not found"
   early-return path manually released the pg client, then the `finally` block
