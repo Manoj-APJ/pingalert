@@ -31,6 +31,9 @@ export const PublicStatusView: React.FC<PublicStatusViewProps> = ({ slug }) => {
       .then((d: PublicStatusData) => {
         if (isMounted) {
           setData(d);
+          if (d.page?.title) {
+            document.title = `${d.page.title} — Status Page | PingAlert`;
+          }
           if (d.page?.theme && (d.page.theme === 'dark' || d.page.theme === 'light')) {
             setTheme(d.page.theme);
           }

@@ -1,0 +1,6 @@
+# PingAlert robots.txt
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://pingalert.onrender.com/sitemap.xml

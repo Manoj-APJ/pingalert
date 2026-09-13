@@ -1,0 +1,22 @@
+{
+  "name": "PingAlert - Website Uptime Monitoring & Status Pages",
+  "short_name": "PingAlert",
+  "description": "Real-time website uptime monitoring, instant outage notifications, latency tracking, and sleek public status pages.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d0e15",
+  "theme_color": "#7e14ff",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/og-image.png",
+      "sizes": "1200x675",
+      "type": "image/png"
+    }
+  ]
+}

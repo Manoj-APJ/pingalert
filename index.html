@@ -2,20 +2,85 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚨</text></svg>" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚨</text></svg>" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <link rel="manifest" href="/site.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PingAlert | Website Uptime Monitoring & Public Status Pages</title>
+    
+    <!-- Primary SEO Meta Tags -->
+    <title>PingAlert — Uptime Monitoring &amp; Public Status Pages</title>
+    <meta name="title" content="PingAlert — Uptime Monitoring &amp; Public Status Pages" />
+    <meta name="description" content="Continuous background monitoring for web APIs, microservices, and user endpoints. Get immediate multi-channel outage alerts and host branded status pages." />
+    <meta name="keywords" content="uptime monitoring, website uptime, status page, ping alert, incident management, downtime alerts, website latency, response time tracking, server status, render uptime" />
+    <meta name="author" content="PingAlert" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    <link rel="canonical" href="https://pingalert.onrender.com/" />
+    
+    <!-- Mobile / Browser Theme Colors -->
+    <meta name="theme-color" content="#121316" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#FAF8F5" media="(prefers-color-scheme: light)" />
+    <meta name="application-name" content="PingAlert" />
+    <meta name="apple-mobile-web-app-title" content="PingAlert" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://pingalert.onrender.com/" />
+    <meta property="og:title" content="PingAlert — Gain Complete Visibility into Your System Reliability" />
+    <meta property="og:description" content="Automated HTTP checks, real-time response times, instant outage alerts, and sleek public status pages for high-reliability web apps." />
+    <meta property="og:image" content="https://pingalert.onrender.com/og-image.png" />
+    <meta property="og:image:secure_url" content="https://pingalert.onrender.com/og-image.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="PingAlert — Website Uptime Monitoring &amp; Status Pages" />
+    <meta property="og:site_name" content="PingAlert" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://pingalert.onrender.com/" />
+    <meta name="twitter:title" content="PingAlert — Gain Complete Visibility into Your System Reliability" />
+    <meta name="twitter:description" content="Automated HTTP checks, real-time response times, instant outage alerts, and sleek public status pages for high-reliability web apps." />
+    <meta name="twitter:image" content="https://pingalert.onrender.com/og-image.png" />
+    <meta name="twitter:image:alt" content="PingAlert — Website Uptime Monitoring &amp; Status Pages" />
+
+    <!-- Schema.org JSON-LD Structured Data for Search Rich Results -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "PingAlert",
+      "url": "https://pingalert.onrender.com/",
+      "description": "PingAlert provides continuous background monitoring for web APIs, microservices, and user endpoints with instant downtime alerts and branded status pages.",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "featureList": [
+        "Continuous Automated HTTP & API Uptime Checks",
+        "Instant Downtime & Recovery Email Alerts",
+        "Response Time & Latency Analytics",
+        "Customizable Public Status Pages",
+        "Incident Logging & Resolution Timelines"
+      ],
+      "screenshot": "https://pingalert.onrender.com/og-image.png"
+    }
+    </script>
     
     <!-- Modern Typography: Inter (Sans) & Fraunces / Newsreader (Editorial Serif) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;500;600;700;800&family=Inter:wght@300;400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,400&display=swap" rel="stylesheet">
-    
-    <!-- Meta details -->
-    <meta name="description" content="PingAlert automatically monitors your websites, logs response times, alerts you during outages, and generates beautiful public status pages for your clients." />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
+
