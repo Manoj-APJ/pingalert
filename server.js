@@ -14,6 +14,9 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
+// Trust reverse proxy headers (Render, Heroku, Cloudflare, Nginx, etc.)
+app.set('trust proxy', config.trustProxy);
+
 // Set up cross-origin sharing & parsing
 app.use(cors());
 app.use(express.json({ limit: '10kb' }));

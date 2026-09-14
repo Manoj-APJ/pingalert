@@ -17,6 +17,9 @@ export const config = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   databaseUrl: process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/pingalert',
   redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
+  trustProxy: process.env.TRUST_PROXY !== undefined
+    ? (process.env.TRUST_PROXY === 'true' ? true : (process.env.TRUST_PROXY === 'false' ? false : (!isNaN(Number(process.env.TRUST_PROXY)) ? Number(process.env.TRUST_PROXY) : process.env.TRUST_PROXY)))
+    : 1,
   rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
   rateLimitMaxReq: parseInt(process.env.RATE_LIMIT_MAX_REQ || '1000', 10),
   pingRetryCount: parseInt(process.env.PING_RETRY_COUNT || '3', 10),
