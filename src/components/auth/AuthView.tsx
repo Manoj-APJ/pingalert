@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Activity, Globe, Zap, Lock, Mail, User as UserIcon } from 'lucide-react';
+import { ShieldCheck, Globe, Zap, Lock, Mail, User as UserIcon } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { apiRequest, TOKEN_KEY } from '../../lib/api';
 import type { User } from '../../types';
+import { Logo } from '../common/Logo';
 
 interface AuthViewProps {
   onAuthSuccess: (user: User, token: string) => void;
@@ -54,7 +55,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuthSuccess }) => {
       <header className="auth-top-nav">
         <div className="auth-brand">
           <div className="brand-mark">
-            <Activity size={20} />
+            <Logo size={28} />
           </div>
           <span className="brand-name">PingAlert</span>
         </div>

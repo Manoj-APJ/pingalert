@@ -6,6 +6,7 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { useToast } from '../../context/useToast';
+import { Logo } from '../common/Logo';
 
 interface StatusPageListProps {
   statusPages: StatusPage[];
@@ -76,7 +77,7 @@ export const StatusPageList: React.FC<StatusPageListProps> = ({
                       <img src={page.logo_url} alt="" className="status-card-logo" />
                     ) : (
                       <div className="status-card-icon-mark">
-                        <Activity size={18} />
+                        <Logo size={20} />
                       </div>
                     )}
                     <div>

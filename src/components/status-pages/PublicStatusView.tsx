@@ -9,6 +9,7 @@ import { Skeleton } from '../ui/Skeleton';
 import { UptimeCalendarGrid } from '../charts/UptimeCalendarGrid';
 import { formatSeconds } from '../../lib/utils';
 import { useTheme } from '../../context/useTheme';
+import { Logo } from '../common/Logo';
 
 interface PublicStatusViewProps {
   slug: string;
@@ -99,7 +100,7 @@ export const PublicStatusView: React.FC<PublicStatusViewProps> = ({ slug }) => {
             <img src={page.logo_url} alt="" className="public-logo-img" />
           ) : (
             <div className="public-brand-mark">
-              <Activity size={20} />
+              <Logo size={24} />
             </div>
           )}
           <span className="public-brand-title">{page.title}</span>
@@ -337,7 +338,9 @@ export const PublicStatusView: React.FC<PublicStatusViewProps> = ({ slug }) => {
         <footer className="public-status-footer">
           <div className="footer-brand-pill">
             <span>Powered by</span>
-            <strong>🚨 PingAlert</strong>
+            <strong style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <Logo size={16} /> PingAlert
+            </strong>
           </div>
         </footer>
       </main>

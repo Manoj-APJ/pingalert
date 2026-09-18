@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { ViewType, User } from '../../types';
 import { useTheme } from '../../context/useTheme';
+import { Logo } from '../common/Logo';
 
 interface SidebarProps {
   currentView: ViewType;
@@ -55,7 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="sidebar-brand-header">
           <div className="sidebar-brand">
             <div className="brand-mark-sm">
-              <Activity size={18} />
+              <Logo size={22} />
             </div>
             <span className="brand-title">PingAlert</span>
           </div>
