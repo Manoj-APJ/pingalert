@@ -128,11 +128,8 @@ export const handleCheckResult = async (monitorId, checkResult) => {
       consecutiveFailures = 0;
       nextStatus = 'up';
 
-      if (prevStatus === 'down') {
-        // Transition: DOWN -> UP
-        lastStatusChangeAt = now;
-
-        // Close the active incident
+      if (prevStatus !== 'up') {
+        // Close any active incident (e.g. from prior outage before pause/resume)
         const incidentRes = await client.query(
           `UPDATE incidents 
            SET ended_at = $1, is_resolved = true 
@@ -141,21 +138,26 @@ export const handleCheckResult = async (monitorId, checkResult) => {
           [now, monitorId]
         );
 
-        if (incidentRes.rowCount > 0) {
-          const incident = incidentRes.rows[0];
-          const durationSec = Math.floor((now - new Date(incident.started_at)) / 1000);
+        if (prevStatus === 'down') {
+          // Transition: DOWN -> UP
+          lastStatusChangeAt = now;
 
-          // Queue notification job for resolved incident
-          queueOps.push(() => alertQueue.add('alert-resolved', {
-            monitorId,
-            monitorName: monitor.name,
-            monitorUrl: monitor.url,
-            userId: monitor.user_id,
-            type: 'UP',
-            startedAt: incident.started_at,
-            endedAt: now,
-            durationSec
-          }));
+          if (incidentRes.rowCount > 0) {
+            const incident = incidentRes.rows[0];
+            const durationSec = Math.floor((now - new Date(incident.started_at)) / 1000);
+
+            // Queue notification job for resolved incident
+            queueOps.push(() => alertQueue.add('alert-resolved', {
+              monitorId,
+              monitorName: monitor.name,
+              monitorUrl: monitor.url,
+              userId: monitor.user_id,
+              type: 'UP',
+              startedAt: incident.started_at,
+              endedAt: now,
+              durationSec
+            }));
+          }
         }
       }
 

@@ -56,6 +56,7 @@ vi.mock('../../config/index.js', () => ({
 // ---------------------------------------------------------------------------
 import { handleCheckResult } from '../monitor-service.js';
 import { pool } from '../../db/index.js';
+import { alertQueue } from '../../queue/index.js';
 
 // ---------------------------------------------------------------------------
 // Helper: a minimal monitor row as returned by the DB
@@ -237,6 +238,138 @@ describe('handleCheckResult — client.release() call count', () => {
     expect(calls.some(q => q.includes('COMMIT'))).toBe(true);
 
     // release must be called exactly once
+    expect(client.release).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Incident closure on recovery & pause/resume regression tests', () => {
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // (a) open incident + prevStatus 'unknown' + successful ping -> incident gets closed, no alert queued
+  it('closes any open incident when prevStatus is "unknown" on a successful check without queuing recovery alert', async () => {
+    const monitor = {
+      ...fakeMonitor(),
+      status: 'unknown',
+    };
+
+    let incidentUpdateCalled = false;
+    let incidentUpdateParams = null;
+
+    const client = makeMockClient({
+      query: vi.fn().mockImplementation((sql, params) => {
+        if (sql.includes('SELECT * FROM monitors')) {
+          return Promise.resolve({ rowCount: 1, rows: [monitor] });
+        }
+        if (sql.includes('UPDATE incidents')) {
+          incidentUpdateCalled = true;
+          incidentUpdateParams = params;
+          return Promise.resolve({
+            rowCount: 1,
+            rows: [{ id: 'incident-uuid-1', started_at: new Date(Date.now() - 300000) }],
+          });
+        }
+        return Promise.resolve({ rowCount: 1, rows: [] });
+      }),
+    });
+
+    pool.connect.mockResolvedValue(client);
+
+    await handleCheckResult(monitor.id, successResult);
+
+    // Incident UPDATE must have been executed to close the dangling incident
+    expect(incidentUpdateCalled).toBe(true);
+    expect(incidentUpdateParams[1]).toBe(monitor.id);
+
+    // Recovery alert must NOT be dispatched for 'unknown' -> 'up' transitions
+    expect(alertQueue.add).not.toHaveBeenCalled();
+
+    // Release must be called
+    expect(client.release).toHaveBeenCalledTimes(1);
+  });
+
+  // (b) prevStatus 'down' still closes it and sends recovery alert as before
+  it('closes open incident and queues recovery alert when prevStatus is "down" on a successful check', async () => {
+    const monitor = {
+      ...fakeMonitor(),
+      status: 'down',
+    };
+
+    let incidentUpdateCalled = false;
+
+    const client = makeMockClient({
+      query: vi.fn().mockImplementation((sql) => {
+        if (sql.includes('SELECT * FROM monitors')) {
+          return Promise.resolve({ rowCount: 1, rows: [monitor] });
+        }
+        if (sql.includes('UPDATE incidents')) {
+          incidentUpdateCalled = true;
+          return Promise.resolve({
+            rowCount: 1,
+            rows: [{ id: 'incident-uuid-1', started_at: new Date(Date.now() - 120000) }],
+          });
+        }
+        return Promise.resolve({ rowCount: 1, rows: [] });
+      }),
+    });
+
+    pool.connect.mockResolvedValue(client);
+
+    await handleCheckResult(monitor.id, successResult);
+
+    // Incident UPDATE must have been executed
+    expect(incidentUpdateCalled).toBe(true);
+
+    // Recovery alert must be dispatched for 'down' -> 'up' transition
+    expect(alertQueue.add).toHaveBeenCalledTimes(1);
+    expect(alertQueue.add).toHaveBeenCalledWith(
+      'alert-resolved',
+      expect.objectContaining({
+        monitorId: monitor.id,
+        type: 'UP',
+        durationSec: expect.any(Number),
+      })
+    );
+
+    // Release must be called
+    expect(client.release).toHaveBeenCalledTimes(1);
+  });
+
+  // (c) prevStatus 'up' runs no incident UPDATE
+  it('does NOT run incident UPDATE on successful check when prevStatus is already "up"', async () => {
+    const monitor = {
+      ...fakeMonitor(),
+      status: 'up',
+    };
+
+    let incidentUpdateCalled = false;
+
+    const client = makeMockClient({
+      query: vi.fn().mockImplementation((sql) => {
+        if (sql.includes('SELECT * FROM monitors')) {
+          return Promise.resolve({ rowCount: 1, rows: [monitor] });
+        }
+        if (sql.includes('UPDATE incidents')) {
+          incidentUpdateCalled = true;
+          return Promise.resolve({ rowCount: 0, rows: [] });
+        }
+        return Promise.resolve({ rowCount: 1, rows: [] });
+      }),
+    });
+
+    pool.connect.mockResolvedValue(client);
+
+    await handleCheckResult(monitor.id, successResult);
+
+    // No incident UPDATE query should be executed when already 'up'
+    expect(incidentUpdateCalled).toBe(false);
+
+    // No alert queued
+    expect(alertQueue.add).not.toHaveBeenCalled();
+
+    // Release must be called
     expect(client.release).toHaveBeenCalledTimes(1);
   });
 });
